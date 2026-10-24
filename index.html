@@ -1,272 +1,999 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Goship Pulse - Concurrent Go HTTP Hop & TLS Telemetry Bench</title>
-  <style>
-    :root {
-      --bg: #0b0f17;
-      --panel: #121826;
-      --border: #222c42;
-      --text: #eef2ff;
-      --muted: #94a3b8;
-      --dns: #38bdf8;
-      --tcp: #fbbf24;
-      --tls: #a855f7;
-      --ttfb: #22c55e;
-      --ok: #10b981;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      background: var(--bg);
-      color: var(--text);
-      padding: 32px 24px;
-    }
-    .wrap { max-width: 1080px; margin: 0 auto; }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 16px;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
-    .sub { color: var(--muted); font-size: 14px; margin-top: 6px; }
-    .controls {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-    input {
-      flex: 1;
-      min-width: 280px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-family: inherit;
-      font-size: 13px;
-    }
-    button {
-      background: #2563eb;
-      color: #fff;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 6px;
-      font-family: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:hover { background: #1d4ed8; }
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 22px;
-    }
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-    }
-    .card-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-    .card-val { font-size: 24px; font-weight: 700; }
-    .table-panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 18px;
-    }
-    .row {
-      display: grid;
-      grid-template-columns: 220px 70px 1fr 110px 100px;
-      align-items: center;
-      gap: 14px;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
-    }
-    .row:last-child { border-bottom: none; }
-    .badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 4px;
-      background: rgba(16, 185, 129, 0.16);
-      color: var(--ok);
-      font-weight: 600;
-      text-align: center;
-    }
-    .bar-track {
-      height: 18px;
-      background: #090d14;
-      border-radius: 4px;
-      overflow: hidden;
-      display: flex;
-      border: 1px solid #1e293b;
-    }
-    .seg-dns { background: var(--dns); }
-    .seg-tcp { background: var(--tcp); }
-    .seg-tls { background: var(--tls); }
-    .seg-ttfb { background: var(--ttfb); }
-    .legend {
-      display: flex;
-      gap: 18px;
-      margin-top: 14px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .dot {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 2px;
-      margin-right: 6px;
-      vertical-align: middle;
-    }
-    pre {
-      background: #080b11;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      color: #a7f3d0;
-      font-size: 12px;
-      overflow-x: auto;
-      margin-top: 22px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Goship Pulse | HTTP phase timing bench</title>
+<meta name="description" content="A bench instrument for HTTP phase timing. Probes endpoints concurrently from Go and shows DNS, TCP, TLS and server wait per request, plus a latency distribution and TLS inspector." />
+<meta name="theme-color" content="#cdc8bc" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314130f'/%3E%3Cpath d='M4 22h6l3-12 4 16 3-10 2 6h6' fill='none' stroke='%23ff6a3d' stroke-width='2.4' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --chassis: #cdc8bc;
+    --chassis-hi: #dedacf;
+    --chassis-lo: #b3ae9f;
+    --ink: #1c1a16;
+    --silk: #46423a;
+    --screen: #14130f;
+    --screen-2: #1c1b15;
+    --grat: #2d2c23;
+    --phos: #ece5cf;
+    --phos-dim: #a09a84;
+    --dns: #3cc4ab;
+    --tcp: #f2c14e;
+    --tls: #ff6a3d;
+    --ttfb: #ece5cf;
+    --other: #55533f;
+    --accent: #ff5a1f;
+    --accent-lo: #8c3512;
+    --ok: #6fd08c;
+    --bad: #ff6a5c;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --label: "Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    --body: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    --screw: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='6' cy='6' r='5' fill='%23a9a495' stroke='%2378735f'/%3E%3Cpath d='M3 6h6' stroke='%2352503f' stroke-width='1.4'/%3E%3C/svg%3E");
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background-color: var(--chassis);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='8' cy='8' r='0.9' fill='%23a29d8e'/%3E%3C/svg%3E");
+    color: var(--ink);
+    font-family: var(--label);
+    font-size: 15px;
+    line-height: 1.4;
+    padding: 28px 24px 48px;
+  }
+  .bench { max-width: 1320px; margin: 0 auto; display: grid; gap: 18px; }
+
+  /* panels, like riveted front plates */
+  .panel {
+    position: relative;
+    background-color: var(--chassis-hi);
+    border: 1px solid var(--chassis-lo);
+    border-radius: 10px;
+    padding: 22px 26px;
+    box-shadow: 0 2px 0 var(--chassis-lo), 0 10px 22px rgba(40, 36, 26, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    background-image: var(--screw), var(--screw), var(--screw), var(--screw);
+    background-repeat: no-repeat;
+    background-position: top 8px left 8px, top 8px right 8px, bottom 8px left 8px, bottom 8px right 8px;
+  }
+  .silk { font-family: var(--label); font-size: 14px; letter-spacing: 0.04em; color: var(--silk); }
+  h1, h2, h3 { margin: 0; font-weight: 700; }
+  h2 { font-size: 20px; letter-spacing: 0.01em; }
+
+  /* top plate */
+  .top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand svg { flex: none; }
+  h1 { font-size: 34px; letter-spacing: -0.01em; line-height: 1; }
+  .model { margin-top: 6px; }
+  .leds { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .led { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--silk); }
+  .led i {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #6d6a5c; border: 1px solid #44413a;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  }
+  .led[data-on="live"] i { background: var(--ok); box-shadow: 0 0 0 3px rgba(111, 208, 140, 0.28); }
+  .led[data-on="snapshot"] i { background: var(--tcp); box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.35); }
+  .led[data-on="busy"] i { background: var(--accent); box-shadow: 0 0 0 3px rgba(255, 90, 31, 0.3); animation: blink 0.7s steps(2, jump-none) infinite; }
+  .led[data-on="fault"] i { background: var(--bad); box-shadow: 0 0 0 3px rgba(255, 106, 92, 0.3); }
+  @keyframes blink { 50% { opacity: 0.35; } }
+  .clock { font-family: var(--mono); font-size: 14px; color: var(--silk); font-variant-numeric: tabular-nums; }
+
+  /* controls */
+  .controls { display: grid; grid-template-columns: minmax(0, 1.6fr) auto auto; gap: 22px 30px; align-items: end; }
+  .field { display: grid; gap: 8px; min-width: 0; }
+  .add-row { display: flex; gap: 10px; }
+  input[type="text"] {
+    flex: 1; min-width: 0;
+    background: var(--screen); color: var(--phos);
+    border: 1px solid #000; border-radius: 6px;
+    padding: 11px 14px; font: 15px var(--mono);
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  input[type="text"]::placeholder { color: #7c775f; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .btn {
+    font: 700 15px var(--label); letter-spacing: 0.03em;
+    color: var(--ink); background: #e9e5da;
+    border: 1px solid #77725f; border-radius: 7px;
+    padding: 10px 18px; cursor: pointer; min-height: 44px;
+    box-shadow: 0 3px 0 #77725f, inset 0 1px 0 #fff;
+    transition: transform 80ms, box-shadow 80ms;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #77725f, inset 0 1px 0 #fff; }
+  .btn.run {
+    background: var(--accent); border-color: var(--accent-lo); color: var(--ink);
+    box-shadow: 0 4px 0 var(--accent-lo), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    min-width: 168px; font-size: 17px; padding: 12px 22px;
+  }
+  .btn.run:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--accent-lo), inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+  .btn[disabled], .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; min-height: 36px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--screen); color: var(--phos); border-radius: 5px;
+    padding: 4px 4px 4px 11px; font: 13px var(--mono);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
+  }
+  .chip button {
+    all: unset; cursor: pointer; width: 26px; height: 26px; display: grid; place-items: center;
+    color: var(--phos-dim); border-radius: 4px;
+  }
+  .chip button:hover { color: var(--phos); background: #2c2b22; }
+  .chip button:focus-visible { outline: 2px solid var(--accent); }
+
+  .switch {
+    display: inline-flex; background: #a9a495; border-radius: 8px; padding: 4px; gap: 3px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  .sw {
+    all: unset; box-sizing: border-box; cursor: pointer; min-width: 48px; min-height: 40px; padding: 0 12px;
+    display: grid; place-items: center; border-radius: 5px; font: 700 16px var(--mono); color: var(--ink);
+    background: #e4e0d4; box-shadow: 0 3px 0 #77725f, inset 0 1px 0 #fff; position: relative; top: -1px;
+  }
+  .sw[aria-checked="true"] {
+    background: #c3beaf; box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.35); top: 2px;
+  }
+  .sw[aria-checked="true"]::after {
+    content: ""; position: absolute; top: 5px; left: 50%; width: 6px; height: 6px; margin-left: -3px;
+    border-radius: 50%; background: var(--accent);
+  }
+  .sw:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .status { margin: 14px 0 0; font: 14px var(--mono); color: var(--silk); min-height: 20px; }
+  .status.err { color: #9d2417; font-weight: 700; }
+  .status code { background: #bdb8a9; padding: 2px 6px; border-radius: 4px; }
+
+  /* readouts */
+  .readouts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+  .lcd {
+    background: var(--screen); border-radius: 8px; padding: 14px 16px 12px; color: var(--phos);
+    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.65);
+    border: 1px solid #000;
+  }
+  .lcd .name { font: 14px var(--label); letter-spacing: 0.04em; color: var(--phos-dim); }
+  .lcd .val { font: 700 30px var(--mono); font-variant-numeric: tabular-nums; margin-top: 4px; white-space: nowrap; }
+  .lcd .val small { font-size: 14px; color: var(--phos-dim); font-weight: 400; margin-left: 4px; }
+  .lcd[data-key="p50"] .val { color: var(--ttfb); }
+  .lcd[data-key="p99"] .val { color: var(--tls); }
+  .lcd[data-key="healthy"] .val.bad { color: var(--bad); }
+
+  /* scopes */
+  .main { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 18px; }
+  .scope-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .screen {
+    position: relative; background: var(--screen); border-radius: 8px; border: 1px solid #000;
+    box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.75), 0 1px 0 rgba(255, 255, 255, 0.65);
+    padding: 10px; overflow: hidden;
+  }
+  .screen svg { display: block; width: 100%; height: auto; }
+  .screen text { font-family: var(--mono); }
+  .scan { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--accent); opacity: 0; }
+  .running .scan { opacity: 0.9; animation: sweep 1.1s linear infinite; }
+  @keyframes sweep { from { transform: translateY(0); } to { transform: translateY(var(--sweep-h, 300px)); } }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; font: 14px var(--body); color: var(--silk); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend i { width: 18px; height: 10px; border-radius: 2px; display: inline-block; }
+  .row-hit { cursor: pointer; }
+  .row-hit:focus-visible { outline: none; }
+  .row-hit:focus-visible .row-frame { stroke: var(--accent); stroke-width: 2; }
+  .empty { color: var(--phos-dim); font: 14px var(--mono); padding: 34px 12px; text-align: center; }
+  .tip {
+    position: fixed; z-index: 20; pointer-events: none; background: #0b0a07; color: var(--phos);
+    border: 1px solid #5a5742; border-radius: 6px; padding: 10px 12px; font: 12.5px var(--mono);
+    max-width: 320px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  }
+  .tip b { display: block; margin-bottom: 6px; font-size: 13.5px; }
+  .tip div { display: flex; justify-content: space-between; gap: 18px; }
+  .tip .sub { color: var(--phos-dim); margin-top: 6px; display: block; }
+  .tip[hidden] { display: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  .pcts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .pcts > div { background: #bdb8a9; border-radius: 6px; padding: 8px 10px; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25); }
+  .pcts .k { font-size: 13px; color: var(--silk); }
+  .pcts .v { font: 700 15px var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* lower deck */
+  .deck { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+  .tabs { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .tab {
+    all: unset; box-sizing: border-box; cursor: pointer; padding: 0 14px; min-height: 40px; display: inline-grid; place-items: center;
+    font: 700 15px var(--label); letter-spacing: 0.02em; color: var(--ink); background: #e4e0d4; border-radius: 6px;
+    box-shadow: 0 3px 0 #77725f, inset 0 1px 0 #fff; position: relative; top: -1px;
+  }
+  .tab[aria-selected="true"] { background: var(--screen); color: var(--phos); box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.7); top: 2px; }
+  .tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .tab small { font: 12px var(--mono); margin-left: 8px; opacity: 0.8; }
+  .deck-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .pick {
+    all: unset; box-sizing: border-box; cursor: pointer; padding: 6px 12px; min-height: 36px; display: inline-flex; align-items: center; gap: 8px;
+    font: 13px var(--mono); background: #bdb8a9; border-radius: 6px; color: var(--ink);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
+  .pick[aria-pressed="true"] { background: var(--screen); color: var(--phos); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.7); }
+  .pick:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .pick .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .pick .dot.bad { background: var(--bad); }
+
+  .glass { background: var(--screen); color: var(--phos); border-radius: 8px; border: 1px solid #000; padding: 16px 18px; box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.75), 0 1px 0 rgba(255, 255, 255, 0.65); }
+  .suite { font: 700 17px var(--mono); word-break: break-all; margin: 0 0 12px; line-height: 1.5; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    all: unset; box-sizing: border-box; cursor: pointer; padding: 6px 12px; min-height: 36px; display: inline-flex; flex-direction: column; justify-content: center;
+    font: 700 13px var(--mono); border-radius: 6px; color: var(--ink); background: var(--phos); border-bottom: 3px solid #8c8670;
+  }
+  .pill small { font: 11.5px var(--label); letter-spacing: 0.03em; color: #4d493b; font-weight: 400; }
+  .pill[aria-pressed="true"] { background: var(--tcp); border-bottom-color: #9b7a1c; }
+  .pill:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .note { margin: 14px 0 0; padding-top: 12px; border-top: 1px dashed #4a4836; font: 14.5px/1.55 var(--body); color: var(--phos); min-height: 66px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; margin-top: 14px; }
+  .facts dt { font-size: 13px; color: var(--phos-dim); }
+  .facts > div { min-width: 0; }
+  .facts dd { margin: 2px 0 0; font: 700 14px var(--mono); word-break: break-word; }
+  .facts .good { color: var(--ok); }
+  .facts .warn { color: var(--tcp); }
+
+  .chain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .cert { position: relative; padding-left: 26px; }
+  .cert::before { content: ""; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px; background: #8d8870; }
+  .cert:first-child::before { top: 20px; }
+  .cert:last-child::before { bottom: calc(100% - 20px); }
+  .cert::after { content: ""; position: absolute; left: 1px; top: 14px; width: 14px; height: 14px; border-radius: 50%; background: var(--screen); border: 3px solid var(--tcp); }
+  .cert.leaf::after { border-color: var(--dns); }
+  .cert.root::after { border-color: var(--tls); }
+  .cert button.head {
+    all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; width: 100%; padding: 10px 6px 10px 4px; border-radius: 6px;
+  }
+  .cert button.head:hover { background: #1f1e17; }
+  .cert button.head:focus-visible { outline: 3px solid var(--accent); }
+  .cert .role { font-size: 13px; color: var(--phos-dim); }
+  .cert .cn { font: 700 15px var(--mono); word-break: break-all; }
+  .cert .days { font: 700 14px var(--mono); align-self: center; grid-row: 1 / span 2; grid-column: 2; }
+  .cert .detail { padding: 2px 6px 14px 4px; display: grid; gap: 8px; }
+  .cert .detail[hidden] { display: none; }
+  .life { height: 12px; background: #0b0a07; border-radius: 3px; position: relative; border: 1px solid #3b3a2d; }
+  .life b { position: absolute; inset: 0 auto 0 0; background: var(--dns); border-radius: 2px; }
+  .life b.soon { background: var(--tls); }
+  .life em { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--phos); }
+  .kv { display: grid; grid-template-columns: 112px 1fr; gap: 3px 12px; font-size: 13px; margin: 0; }
+  .kv dt { color: var(--phos-dim); }
+  .kv dd { margin: 0; font-family: var(--mono); word-break: break-all; }
+
+  pre.out.ascii { line-height: 1.14; }
+  pre.out {
+    margin: 0; background: var(--screen); color: var(--phos); border: 1px solid #000; border-radius: 8px;
+    padding: 14px 16px; font: 12.5px/1.45 var(--mono); overflow: auto; max-height: 340px; tab-size: 2;
+    box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.75), 0 1px 0 rgba(255, 255, 255, 0.65);
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .foot { text-align: center; font-size: 14px; color: var(--silk); }
+  .foot a { color: var(--ink); }
+
+  @media (max-width: 1020px) {
+    .main, .deck { grid-template-columns: minmax(0, 1fr); }
+    .readouts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .controls { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 560px) {
+    body { padding: 14px 10px 30px; }
+    .panel { padding: 22px 16px; }
+    .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    h1 { font-size: 28px; }
+    .kv { grid-template-columns: 96px 1fr; }
+    .pcts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
+<main class="bench">
+
+  <header class="panel top">
+    <div class="brand">
+      <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
+        <rect width="52" height="52" rx="9" fill="#14130f"/>
+        <path d="M6 34h9l5-18 6 24 5-15 3 9h12" fill="none" stroke="#ff6a3d" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
       <div>
-        <h1>Goship Pulse v1.0</h1>
-        <div class="sub">Concurrent Go net/http/httptrace Waterfall Bench &amp; TLS Expiry Inspector</div>
+        <h1>Goship Pulse</h1>
+        <div class="silk model">HTTP phase timing bench, model 1.1</div>
       </div>
-      <div class="sub">github.com/draarivpatel-ui/goship-pulse</div>
-    </header>
+    </div>
+    <div class="leds" role="group" aria-label="Instrument status">
+      <div class="led" id="ledLink" data-on=""><i></i><span id="ledLinkText">connecting</span></div>
+      <div class="led" id="ledRun" data-on=""><i></i><span id="ledRunText">idle</span></div>
+      <div class="clock" id="clock" aria-hidden="true">00:00:00 UTC</div>
+    </div>
+  </header>
 
+  <section class="panel" aria-labelledby="inTitle">
+    <h2 id="inTitle" class="sr-only">Probe inputs</h2>
     <div class="controls">
-      <input id="targets" value="https://hackclub.com, https://github.com, https://cloudflare.com, https://pkg.go.dev, https://go.dev" />
-      <button id="runBtn">Run Concurrent Probe</button>
-    </div>
-
-    <div class="metrics">
-      <div class="card">
-        <div class="card-label">Healthy Endpoints</div>
-        <div class="card-val" id="mHealthy">5 / 5</div>
+      <div class="field">
+        <label class="silk" for="targetInput">Endpoints to probe (up to 12)</label>
+        <div class="add-row">
+          <input id="targetInput" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="example.com or https://host:8443/path" />
+          <button class="btn" id="addBtn" type="button">Add endpoint</button>
+        </div>
+        <div class="chips" id="chips" aria-label="Endpoint list"></div>
       </div>
-      <div class="card">
-        <div class="card-label">Median Latency (p50)</div>
-        <div class="card-val" id="mP50">84.2 ms</div>
+      <div class="field">
+        <span class="silk" id="sampLabel">Probes per endpoint</span>
+        <div class="switch" role="radiogroup" aria-labelledby="sampLabel" id="samples"></div>
       </div>
-      <div class="card">
-        <div class="card-label">Tail Latency (p95)</div>
-        <div class="card-val" id="mP95">148.6 ms</div>
-      </div>
-      <div class="card">
-        <div class="card-label">TLS Protocol</div>
-        <div class="card-val" id="mTLS">TLS 1.3</div>
+      <div class="field">
+        <button class="btn run" id="runBtn" type="button">Run probe</button>
       </div>
     </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
 
-    <div class="table-panel">
-      <div id="rows"></div>
-      <div class="legend">
-        <span><i class="dot" style="background:var(--dns)"></i>DNS Lookup</span>
-        <span><i class="dot" style="background:var(--tcp)"></i>TCP Dial</span>
-        <span><i class="dot" style="background:var(--tls)"></i>TLS Handshake</span>
-        <span><i class="dot" style="background:var(--ttfb)"></i>Server TTFB</span>
+  <section class="readouts" aria-label="Summary readouts" id="readouts"></section>
+
+  <div class="main">
+    <section class="panel" aria-labelledby="wfTitle">
+      <div class="scope-head">
+        <h2 id="wfTitle">Phase timing waterfall</h2>
+        <span class="silk" id="wfMeta"></span>
       </div>
-    </div>
+      <div class="screen" id="wfScreen">
+        <div class="scan" aria-hidden="true"></div>
+        <div id="wfMount"></div>
+      </div>
+      <div class="legend" aria-label="Phase legend">
+        <span><i style="background:var(--dns)"></i>DNS lookup</span>
+        <span><i style="background:var(--tcp)"></i>TCP connect</span>
+        <span><i style="background:var(--tls)"></i>TLS handshake</span>
+        <span><i style="background:var(--ttfb)"></i>Server wait (first byte)</span>
+        <span><i style="background:repeating-linear-gradient(135deg,#55533f 0 3px,#14130f 3px 6px);border:1px solid #55533f"></i>Other (headers, redirects)</span>
+        <span><i style="background:none;border-top:2px solid var(--phos-dim);height:0;width:18px"></i>Spread across samples</span>
+      </div>
+      <table class="sr-only" id="wfTable"><caption>Phase timings in milliseconds, median sample per endpoint</caption></table>
+    </section>
 
-    <pre id="cliOut"></pre>
+    <section class="panel" aria-labelledby="hgTitle">
+      <div class="scope-head">
+        <h2 id="hgTitle">Latency distribution</h2>
+        <span class="silk" id="hgMeta"></span>
+      </div>
+      <div class="screen"><div id="hgMount"></div></div>
+      <div class="pcts" id="pcts"></div>
+    </section>
   </div>
 
-  <script>
-    const sampleFleet = [
-      { target: "https://hackclub.com", code: 200, dns: 8.4, tcp: 19.2, tls: 31.5, ttfb: 39.1, cert: 78 },
-      { target: "https://github.com", code: 200, dns: 6.1, tcp: 14.8, tls: 24.3, ttfb: 38.9, cert: 142 },
-      { target: "https://cloudflare.com", code: 200, dns: 4.2, tcp: 9.6, tls: 16.4, ttfb: 21.8, cert: 265 },
-      { target: "https://pkg.go.dev", code: 200, dns: 9.3, tcp: 22.1, tls: 36.8, ttfb: 49.4, cert: 64 },
-      { target: "https://go.dev", code: 200, dns: 7.8, tcp: 18.5, tls: 29.7, ttfb: 41.2, cert: 64 }
-    ];
+  <div class="deck">
+    <section class="panel" aria-labelledby="inspTitle">
+      <div class="deck-head">
+        <h2 id="inspTitle">TLS inspector</h2>
+        <div class="tabs" role="tablist" aria-label="Inspector view" id="inspTabs">
+          <button class="tab" role="tab" id="tab-cipher" aria-controls="inspBody" data-k="cipher">Cipher suite</button>
+          <button class="tab" role="tab" id="tab-chain" aria-controls="inspBody" data-k="chain">Certificate chain</button>
+        </div>
+      </div>
+      <div class="picker" id="picker" role="group" aria-label="Choose endpoint to inspect"></div>
+      <div id="inspBody" role="tabpanel"></div>
+    </section>
 
-    function render(probes) {
-      const maxTotal = Math.max(...probes.map(p => p.dns + p.tcp + p.tls + p.ttfb), 160);
-      const rowsEl = document.getElementById("rows");
-      rowsEl.innerHTML = "";
-      const totals = [];
+    <section class="panel" aria-labelledby="exTitle">
+      <div class="deck-head">
+        <h2 id="exTitle">Export</h2>
+        <div class="tabs" role="tablist" aria-label="Export format" id="exTabs">
+          <button class="tab" role="tab" id="tab-json" aria-controls="exBody" data-k="json">JSON</button>
+          <button class="tab" role="tab" id="tab-cli" aria-controls="exBody" data-k="cli">CLI</button>
+          <button class="tab" role="tab" id="tab-curl" aria-controls="exBody" data-k="curl">curl</button>
+        </div>
+      </div>
+      <div id="exBody" role="tabpanel"></div>
+      <div class="actions">
+        <button class="btn" type="button" id="copyBtn">Copy</button>
+        <button class="btn" type="button" id="dlBtn">Download JSON</button>
+      </div>
+    </section>
+  </div>
 
-      let cli = "┌──────────────────────────┬──────┬─────────┬────────┬────────┬────────┬────────┬────────┐\n";
-      cli +=    "│ TARGET                   │ CODE │ DNS(ms) │ TCP(ms)│ TLS(ms)│ TTFB   │ TOTAL  │ CERT   │\n";
-      cli +=    "├──────────────────────────┼──────┼─────────┼────────┼────────┼────────┼────────┼────────┤\n";
+  <p class="foot">Built on Go net/http/httptrace. Source at <a href="https://github.com/draarivpatel-ui/goship-pulse">github.com/draarivpatel-ui/goship-pulse</a></p>
+</main>
+<div class="tip" id="tip" hidden></div>
+<noscript><p style="text-align:center">This bench draws its instruments with JavaScript. The terminal and JSON output from the Go binary work without it.</p></noscript>
 
-      probes.forEach(p => {
-        const total = p.dns + p.tcp + p.tls + p.ttfb;
-        totals.push(total);
-        const wDns = (p.dns / maxTotal) * 100;
-        const wTcp = (p.tcp / maxTotal) * 100;
-        const wTls = (p.tls / maxTotal) * 100;
-        const wTtfb = (p.ttfb / maxTotal) * 100;
+<script type="application/json" id="snapshot">{"generated_at":"2026-10-24T23:00:49Z","count":25,"healthy":25,"samples_per_target":5,"min_ms":65.196,"p50_ms":181.715,"p90_ms":285.71020000000004,"p95_ms":304.6618,"p99_ms":379.99931999999995,"max_ms":402.885,"totals_ms":[65.196,69.716,77.62,101.445,103.615,105.57,106.33,112.384,118.985,122.968,123.155,171.056,181.715,183.518,205.227,208.975,209.453,238.5,250.082,251.833,266.741,274.48,293.197,307.528,402.885],"probes":[{"target":"https://hackclub.com","sample":1,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"104.18.28.137:443","total_ms":402.885,"dns_ms":39.947,"tcp_connect_ms":23.154,"tls_handshake_ms":32.364,"server_wait_ms":306.708,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"hackclub.com","issuer":"WE1","not_before":"2026-09-06T02:13:36Z","not_after":"2026-12-05T03:13:32Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":1,"sans":["hackclub.com"],"sha256":"2f858dc6498179fb6bbdb3fa544837586552b6f321841e703ae764a0d7528812"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://hackclub.com","sample":2,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"104.18.28.137:443","total_ms":307.528,"dns_ms":0.547,"tcp_connect_ms":28.767,"tls_handshake_ms":31.031,"server_wait_ms":247.028,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"hackclub.com","issuer":"WE1","not_before":"2026-09-06T02:13:36Z","not_after":"2026-12-05T03:13:32Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":1,"sans":["hackclub.com"],"sha256":"2f858dc6498179fb6bbdb3fa544837586552b6f321841e703ae764a0d7528812"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://hackclub.com","sample":3,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"104.18.28.137:443","total_ms":274.48,"dns_ms":1.16,"tcp_connect_ms":25.696,"tls_handshake_ms":39.863,"server_wait_ms":207.55,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"hackclub.com","issuer":"WE1","not_before":"2026-09-06T02:13:36Z","not_after":"2026-12-05T03:13:32Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":1,"sans":["hackclub.com"],"sha256":"2f858dc6498179fb6bbdb3fa544837586552b6f321841e703ae764a0d7528812"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://hackclub.com","sample":4,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"104.18.28.137:443","total_ms":251.833,"dns_ms":2.091,"tcp_connect_ms":30.74,"tls_handshake_ms":34.967,"server_wait_ms":183.719,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"hackclub.com","issuer":"WE1","not_before":"2026-09-06T02:13:36Z","not_after":"2026-12-05T03:13:32Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":1,"sans":["hackclub.com"],"sha256":"2f858dc6498179fb6bbdb3fa544837586552b6f321841e703ae764a0d7528812"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://hackclub.com","sample":5,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"104.18.28.137:443","total_ms":293.197,"dns_ms":1.847,"tcp_connect_ms":26.388,"tls_handshake_ms":58.19,"server_wait_ms":206.438,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"hackclub.com","issuer":"WE1","not_before":"2026-09-06T02:13:36Z","not_after":"2026-12-05T03:13:32Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":1,"sans":["hackclub.com"],"sha256":"2f858dc6498179fb6bbdb3fa544837586552b6f321841e703ae764a0d7528812"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://github.com","sample":1,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"140.82.113.4:443","total_ms":208.975,"dns_ms":39.404,"tcp_connect_ms":56.219,"tls_handshake_ms":56.605,"server_wait_ms":56.241,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":36,"chain":[{"subject":"github.com","issuer":"Sectigo Public Server Authentication CA DV E36","not_before":"2026-09-01T00:00:00Z","not_after":"2026-11-29T23:59:59Z","days_left":36,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":2,"sans":["github.com","www.github.com"],"sha256":"46b601ee08b418cf8a3a1ebfe670ba5ce43bb05a917fa8b2dd087a30471cfc63"},{"subject":"Sectigo Public Server Authentication CA DV E36","issuer":"Sectigo Public Server Authentication Root E46","not_before":"2021-03-22T00:00:00Z","not_after":"2036-03-21T23:59:59Z","days_left":3436,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"873f0ba80e3ac222656dfd04158cc15c2927d42d5d05f01dee4a47eb43a916df"},{"subject":"Sectigo Public Server Authentication Root E46","issuer":"USERTrust ECC Certification Authority","not_before":"2021-03-22T00:00:00Z","not_after":"2038-01-18T23:59:59Z","days_left":4104,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"ea6b89ed6907a209ff9188676fb164e7aced894b8996dfbe5ce5bbcc22de4ddd"}],"healthy":true},{"target":"https://github.com","sample":2,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"140.82.113.4:443","total_ms":238.5,"dns_ms":1.258,"tcp_connect_ms":57.762,"tls_handshake_ms":63.219,"server_wait_ms":116.103,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":36,"chain":[{"subject":"github.com","issuer":"Sectigo Public Server Authentication CA DV E36","not_before":"2026-09-01T00:00:00Z","not_after":"2026-11-29T23:59:59Z","days_left":36,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":2,"sans":["github.com","www.github.com"],"sha256":"46b601ee08b418cf8a3a1ebfe670ba5ce43bb05a917fa8b2dd087a30471cfc63"},{"subject":"Sectigo Public Server Authentication CA DV E36","issuer":"Sectigo Public Server Authentication Root E46","not_before":"2021-03-22T00:00:00Z","not_after":"2036-03-21T23:59:59Z","days_left":3436,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"873f0ba80e3ac222656dfd04158cc15c2927d42d5d05f01dee4a47eb43a916df"},{"subject":"Sectigo Public Server Authentication Root E46","issuer":"USERTrust ECC Certification Authority","not_before":"2021-03-22T00:00:00Z","not_after":"2038-01-18T23:59:59Z","days_left":4104,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"ea6b89ed6907a209ff9188676fb164e7aced894b8996dfbe5ce5bbcc22de4ddd"}],"healthy":true},{"target":"https://github.com","sample":3,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"140.82.113.4:443","total_ms":209.453,"dns_ms":1.95,"tcp_connect_ms":49.276,"tls_handshake_ms":57.543,"server_wait_ms":100.518,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":36,"chain":[{"subject":"github.com","issuer":"Sectigo Public Server Authentication CA DV E36","not_before":"2026-09-01T00:00:00Z","not_after":"2026-11-29T23:59:59Z","days_left":36,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":2,"sans":["github.com","www.github.com"],"sha256":"46b601ee08b418cf8a3a1ebfe670ba5ce43bb05a917fa8b2dd087a30471cfc63"},{"subject":"Sectigo Public Server Authentication CA DV E36","issuer":"Sectigo Public Server Authentication Root E46","not_before":"2021-03-22T00:00:00Z","not_after":"2036-03-21T23:59:59Z","days_left":3436,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"873f0ba80e3ac222656dfd04158cc15c2927d42d5d05f01dee4a47eb43a916df"},{"subject":"Sectigo Public Server Authentication Root E46","issuer":"USERTrust ECC Certification Authority","not_before":"2021-03-22T00:00:00Z","not_after":"2038-01-18T23:59:59Z","days_left":4104,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"ea6b89ed6907a209ff9188676fb164e7aced894b8996dfbe5ce5bbcc22de4ddd"}],"healthy":true},{"target":"https://github.com","sample":4,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"140.82.113.4:443","total_ms":171.056,"dns_ms":1.413,"tcp_connect_ms":51.837,"tls_handshake_ms":64.738,"server_wait_ms":52.93,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":36,"chain":[{"subject":"github.com","issuer":"Sectigo Public Server Authentication CA DV E36","not_before":"2026-09-01T00:00:00Z","not_after":"2026-11-29T23:59:59Z","days_left":36,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":2,"sans":["github.com","www.github.com"],"sha256":"46b601ee08b418cf8a3a1ebfe670ba5ce43bb05a917fa8b2dd087a30471cfc63"},{"subject":"Sectigo Public Server Authentication CA DV E36","issuer":"Sectigo Public Server Authentication Root E46","not_before":"2021-03-22T00:00:00Z","not_after":"2036-03-21T23:59:59Z","days_left":3436,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"873f0ba80e3ac222656dfd04158cc15c2927d42d5d05f01dee4a47eb43a916df"},{"subject":"Sectigo Public Server Authentication Root E46","issuer":"USERTrust ECC Certification Authority","not_before":"2021-03-22T00:00:00Z","not_after":"2038-01-18T23:59:59Z","days_left":4104,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"ea6b89ed6907a209ff9188676fb164e7aced894b8996dfbe5ce5bbcc22de4ddd"}],"healthy":true},{"target":"https://github.com","sample":5,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"140.82.113.4:443","total_ms":205.227,"dns_ms":2.086,"tcp_connect_ms":68.647,"tls_handshake_ms":69.131,"server_wait_ms":65.126,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":36,"chain":[{"subject":"github.com","issuer":"Sectigo Public Server Authentication CA DV E36","not_before":"2026-09-01T00:00:00Z","not_after":"2026-11-29T23:59:59Z","days_left":36,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":2,"sans":["github.com","www.github.com"],"sha256":"46b601ee08b418cf8a3a1ebfe670ba5ce43bb05a917fa8b2dd087a30471cfc63"},{"subject":"Sectigo Public Server Authentication CA DV E36","issuer":"Sectigo Public Server Authentication Root E46","not_before":"2021-03-22T00:00:00Z","not_after":"2036-03-21T23:59:59Z","days_left":3436,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"873f0ba80e3ac222656dfd04158cc15c2927d42d5d05f01dee4a47eb43a916df"},{"subject":"Sectigo Public Server Authentication Root E46","issuer":"USERTrust ECC Certification Authority","not_before":"2021-03-22T00:00:00Z","not_after":"2038-01-18T23:59:59Z","days_left":4104,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"ea6b89ed6907a209ff9188676fb164e7aced894b8996dfbe5ce5bbcc22de4ddd"}],"healthy":true},{"target":"https://cloudflare.com","sample":1,"status_code":301,"protocol":"HTTP/2.0","remote_addr":"104.16.133.229:443","total_ms":122.968,"dns_ms":39.917,"tcp_connect_ms":23.083,"tls_handshake_ms":34.617,"server_wait_ms":24.713,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"cloudflare.com","issuer":"WE1","not_before":"2026-09-05T22:29:39Z","not_after":"2026-12-04T23:29:33Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":5,"sans":["cloudflare.com","ns.cloudflare.com","*.ns.cloudflare.com","*.secondary.cloudflare.com","secondary.cloudflare.com"],"sha256":"961034ebe73c0aab92ee5c127a4265b99abc36cdf0b53b82b10788e087a72a14"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://cloudflare.com","sample":2,"status_code":301,"protocol":"HTTP/2.0","remote_addr":"104.16.133.229:443","total_ms":77.62,"dns_ms":1.593,"tcp_connect_ms":22.221,"tls_handshake_ms":25.587,"server_wait_ms":28.092,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"cloudflare.com","issuer":"WE1","not_before":"2026-09-05T22:29:39Z","not_after":"2026-12-04T23:29:33Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":5,"sans":["cloudflare.com","ns.cloudflare.com","*.ns.cloudflare.com","*.secondary.cloudflare.com","secondary.cloudflare.com"],"sha256":"961034ebe73c0aab92ee5c127a4265b99abc36cdf0b53b82b10788e087a72a14"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://cloudflare.com","sample":3,"status_code":301,"protocol":"HTTP/2.0","remote_addr":"104.16.133.229:443","total_ms":65.196,"dns_ms":1,"tcp_connect_ms":17.465,"tls_handshake_ms":20.793,"server_wait_ms":25.785,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"cloudflare.com","issuer":"WE1","not_before":"2026-09-05T22:29:39Z","not_after":"2026-12-04T23:29:33Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":5,"sans":["cloudflare.com","ns.cloudflare.com","*.ns.cloudflare.com","*.secondary.cloudflare.com","secondary.cloudflare.com"],"sha256":"961034ebe73c0aab92ee5c127a4265b99abc36cdf0b53b82b10788e087a72a14"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://cloudflare.com","sample":4,"status_code":301,"protocol":"HTTP/2.0","remote_addr":"104.16.133.229:443","total_ms":105.57,"dns_ms":1.571,"tcp_connect_ms":32.788,"tls_handshake_ms":35.597,"server_wait_ms":35.419,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"cloudflare.com","issuer":"WE1","not_before":"2026-09-05T22:29:39Z","not_after":"2026-12-04T23:29:33Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":5,"sans":["cloudflare.com","ns.cloudflare.com","*.ns.cloudflare.com","*.secondary.cloudflare.com","secondary.cloudflare.com"],"sha256":"961034ebe73c0aab92ee5c127a4265b99abc36cdf0b53b82b10788e087a72a14"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://cloudflare.com","sample":5,"status_code":301,"protocol":"HTTP/2.0","remote_addr":"104.16.133.229:443","total_ms":69.716,"dns_ms":1.156,"tcp_connect_ms":18.18,"tls_handshake_ms":24.877,"server_wait_ms":25.299,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":41,"chain":[{"subject":"cloudflare.com","issuer":"WE1","not_before":"2026-09-05T22:29:39Z","not_after":"2026-12-04T23:29:33Z","days_left":41,"sig_alg":"ECDSA-SHA256","key_alg":"ECDSA P-256","is_ca":false,"san_count":5,"sans":["cloudflare.com","ns.cloudflare.com","*.ns.cloudflare.com","*.secondary.cloudflare.com","secondary.cloudflare.com"],"sha256":"961034ebe73c0aab92ee5c127a4265b99abc36cdf0b53b82b10788e087a72a14"},{"subject":"WE1","issuer":"GTS Root R4","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"ECDSA-SHA384","key_alg":"ECDSA P-256","is_ca":true,"san_count":0,"sha256":"1dfc1605fbad358d8bc844f76d15203fac9ca5c1a79fd4857ffaf2864fbebf96"},{"subject":"GTS Root R4","issuer":"GlobalSign Root CA","not_before":"2023-11-15T03:43:21Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"ECDSA P-384","is_ca":true,"san_count":0,"sha256":"76b27b80a58027dc3cf1da68dac17010ed93997d0b603e2fadbe85012493b5a7"}],"healthy":true},{"target":"https://pkg.go.dev","sample":1,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"34.149.140.181:443","total_ms":266.741,"dns_ms":155.212,"tcp_connect_ms":16.53,"tls_handshake_ms":25.034,"server_wait_ms":69.672,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":86,"chain":[{"subject":"pkg.go.dev","issuer":"WR3","not_before":"2026-10-21T00:51:13Z","not_after":"2027-01-19T01:45:47Z","days_left":86,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["pkg.go.dev"],"sha256":"096be356a41bf788e511dea834705abc932320f47dba94d40fcfee39f5ad7648"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://pkg.go.dev","sample":2,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"34.149.140.181:443","total_ms":118.985,"dns_ms":0.591,"tcp_connect_ms":19.866,"tls_handshake_ms":25.295,"server_wait_ms":73.035,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":86,"chain":[{"subject":"pkg.go.dev","issuer":"WR3","not_before":"2026-10-21T00:51:13Z","not_after":"2027-01-19T01:45:47Z","days_left":86,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["pkg.go.dev"],"sha256":"096be356a41bf788e511dea834705abc932320f47dba94d40fcfee39f5ad7648"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://pkg.go.dev","sample":3,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"34.149.140.181:443","total_ms":123.155,"dns_ms":1.591,"tcp_connect_ms":20.584,"tls_handshake_ms":23.858,"server_wait_ms":76.912,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":86,"chain":[{"subject":"pkg.go.dev","issuer":"WR3","not_before":"2026-10-21T00:51:13Z","not_after":"2027-01-19T01:45:47Z","days_left":86,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["pkg.go.dev"],"sha256":"096be356a41bf788e511dea834705abc932320f47dba94d40fcfee39f5ad7648"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://pkg.go.dev","sample":4,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"34.149.140.181:443","total_ms":250.082,"dns_ms":1.283,"tcp_connect_ms":20.154,"tls_handshake_ms":23.78,"server_wait_ms":204.643,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":86,"chain":[{"subject":"pkg.go.dev","issuer":"WR3","not_before":"2026-10-21T00:51:13Z","not_after":"2027-01-19T01:45:47Z","days_left":86,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["pkg.go.dev"],"sha256":"096be356a41bf788e511dea834705abc932320f47dba94d40fcfee39f5ad7648"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://pkg.go.dev","sample":5,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"34.149.140.181:443","total_ms":112.384,"dns_ms":1.939,"tcp_connect_ms":17.924,"tls_handshake_ms":28.953,"server_wait_ms":63.28,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":86,"chain":[{"subject":"pkg.go.dev","issuer":"WR3","not_before":"2026-10-21T00:51:13Z","not_after":"2027-01-19T01:45:47Z","days_left":86,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["pkg.go.dev"],"sha256":"096be356a41bf788e511dea834705abc932320f47dba94d40fcfee39f5ad7648"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://go.dev","sample":1,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"216.239.34.21:443","total_ms":181.715,"dns_ms":81.355,"tcp_connect_ms":15.362,"tls_handshake_ms":33.123,"server_wait_ms":51.383,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":56,"chain":[{"subject":"go.dev","issuer":"WR3","not_before":"2026-09-21T05:40:16Z","not_after":"2026-12-20T06:28:06Z","days_left":56,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["go.dev"],"sha256":"cae617e6a8183759369e85e0365440d20abfb26572b293b21d243f82f0acf704"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://go.dev","sample":2,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"216.239.34.21:443","total_ms":183.518,"dns_ms":1.304,"tcp_connect_ms":16.19,"tls_handshake_ms":29.696,"server_wait_ms":136.162,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":56,"chain":[{"subject":"go.dev","issuer":"WR3","not_before":"2026-09-21T05:40:16Z","not_after":"2026-12-20T06:28:06Z","days_left":56,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["go.dev"],"sha256":"cae617e6a8183759369e85e0365440d20abfb26572b293b21d243f82f0acf704"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://go.dev","sample":3,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"216.239.34.21:443","total_ms":101.445,"dns_ms":2.037,"tcp_connect_ms":15.489,"tls_handshake_ms":35.003,"server_wait_ms":48.737,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":56,"chain":[{"subject":"go.dev","issuer":"WR3","not_before":"2026-09-21T05:40:16Z","not_after":"2026-12-20T06:28:06Z","days_left":56,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["go.dev"],"sha256":"cae617e6a8183759369e85e0365440d20abfb26572b293b21d243f82f0acf704"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://go.dev","sample":4,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"216.239.34.21:443","total_ms":103.615,"dns_ms":1.039,"tcp_connect_ms":17.274,"tls_handshake_ms":34.196,"server_wait_ms":50.922,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":56,"chain":[{"subject":"go.dev","issuer":"WR3","not_before":"2026-09-21T05:40:16Z","not_after":"2026-12-20T06:28:06Z","days_left":56,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["go.dev"],"sha256":"cae617e6a8183759369e85e0365440d20abfb26572b293b21d243f82f0acf704"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true},{"target":"https://go.dev","sample":5,"status_code":200,"protocol":"HTTP/2.0","remote_addr":"216.239.34.21:443","total_ms":106.33,"dns_ms":0.864,"tcp_connect_ms":16.22,"tls_handshake_ms":37.328,"server_wait_ms":51.802,"tls_version":"TLS 1.3","cipher_suite":"TLS_AES_128_GCM_SHA256","alpn":"h2","cert_days_left":56,"chain":[{"subject":"go.dev","issuer":"WR3","not_before":"2026-09-21T05:40:16Z","not_after":"2026-12-20T06:28:06Z","days_left":56,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":false,"san_count":1,"sans":["go.dev"],"sha256":"cae617e6a8183759369e85e0365440d20abfb26572b293b21d243f82f0acf704"},{"subject":"WR3","issuer":"GTS Root R1","not_before":"2023-12-13T09:00:00Z","not_after":"2029-02-20T14:00:00Z","days_left":849,"sig_alg":"SHA256-RSA","key_alg":"RSA 2048","is_ca":true,"san_count":0,"sha256":"2fe357db13751ff9160e87354975b3407498f41c9bd16a48657866e6e5a9b4c7"},{"subject":"GTS Root R1","issuer":"GlobalSign Root CA","not_before":"2020-06-19T00:00:42Z","not_after":"2028-01-28T00:00:42Z","days_left":460,"sig_alg":"SHA256-RSA","key_alg":"RSA 4096","is_ca":true,"san_count":0,"sha256":"3ee0278df71fa3c125c4cd487f01d774694e6fc57e0cd94c24efd769133918e5"}],"healthy":true}],"ascii":"\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 goship pulse v1.1 | 25/25 healthy | n=25 | p50 181.7 | p90 285.7 | p95 304.7 | p99 380.0 | max 402.9 ms               \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 target                   \u2502 code \u2502 dns     \u2502 tcp     \u2502 tls     \u2502 ttfb    \u2502 total   \u2502 cert   \u2502 waterfall                \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 hackclub.com             \u2502 200  \u2502 1.8     \u2502 26.4    \u2502 58.2    \u2502 206.4   \u2502 293.2   \u2502 41d    \u2502 \u2592\u2592\u2593\u2593\u2593\u2593\u2593\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 \u2502\n\u2502 github.com               \u2502 200  \u2502 39.4    \u2502 56.2    \u2502 56.6    \u2502 56.2    \u2502 209.0   \u2502 36d    \u2502 \u2591\u2591\u2591\u2592\u2592\u2592\u2592\u2592\u2593\u2593\u2593\u2593\u2588\u2588\u2588\u2588\u2588        \u2502\n\u2502 cloudflare.com           \u2502 301  \u2502 1.6     \u2502 22.2    \u2502 25.6    \u2502 28.1    \u2502 77.6    \u2502 41d    \u2502 \u2592\u2592\u2593\u2593\u2588\u2588                   \u2502\n\u2502 pkg.go.dev               \u2502 200  \u2502 1.6     \u2502 20.6    \u2502 23.9    \u2502 76.9    \u2502 123.2   \u2502 86d    \u2502 \u2592\u2592\u2593\u2593\u2588\u2588\u2588\u2588\u2588\u2588               \u2502\n\u2502 go.dev                   \u2502 200  \u2502 0.9     \u2502 16.2    \u2502 37.3    \u2502 51.8    \u2502 106.3   \u2502 56d    \u2502 \u2592\u2593\u2593\u2593\u2588\u2588\u2588\u2588\u2588                \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\nbar glyphs  \u2591 dns  \u2592 tcp  \u2593 tls  \u2588 ttfb   full scale 293.2 ms\n"}</script>
+<script>
+"use strict";
 
-        const row = document.createElement("div");
-        row.className = "row";
-        row.innerHTML = `
-          <div>${p.target.replace(/^https?:\/\//, "")}</div>
-          <div><span class="badge">${p.code} OK</span></div>
-          <div class="bar-track">
-            <div class="seg-dns" style="width:${wDns.toFixed(1)}%" title="DNS ${p.dns.toFixed(1)}ms"></div>
-            <div class="seg-tcp" style="width:${wTcp.toFixed(1)}%" title="TCP ${p.tcp.toFixed(1)}ms"></div>
-            <div class="seg-tls" style="width:${wTls.toFixed(1)}%" title="TLS ${p.tls.toFixed(1)}ms"></div>
-            <div class="seg-ttfb" style="width:${wTtfb.toFixed(1)}%" title="TTFB ${p.ttfb.toFixed(1)}ms"></div>
-          </div>
-          <div style="text-align:right;font-weight:700">${total.toFixed(1)} ms</div>
-          <div style="text-align:right;color:var(--muted)">TLS 1.3 · ${p.cert}d</div>
-        `;
-        rowsEl.appendChild(row);
+/* ---------- tiny DOM helpers (all text goes through textContent, never innerHTML) ---------- */
+const NS = "http://www.w3.org/2000/svg";
+const $ = (sel, el = document) => el.querySelector(sel);
+function el(tag, attrs, ...kids) { return build(document.createElement(tag), attrs, kids); }
+function sv(tag, attrs, ...kids) { return build(document.createElementNS(NS, tag), attrs, kids); }
+function build(node, attrs, kids) {
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === "class") node.setAttribute("class", v);
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    node.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  }
+  return node;
+}
+const clear = (n) => { while (n.firstChild) n.removeChild(n.firstChild); return n; };
+const ms = (v, d = 1) => (Number.isFinite(v) ? v.toFixed(d) : "0.0");
+const bareHost = (t) => t.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
-        const shortName = p.target.replace(/^https?:\/\//, "").padEnd(24, " ").slice(0, 24);
-        cli += `│ ${shortName} │ ${String(p.code).padEnd(4)} │ ${p.dns.toFixed(1).padStart(7)} │ ${p.tcp.toFixed(1).padStart(6)} │ ${p.tls.toFixed(1).padStart(6)} │ ${p.ttfb.toFixed(1).padStart(6)} │ ${total.toFixed(1).padStart(6)} │ ${(p.cert + "d").padEnd(6)} │\n`;
-      });
-      cli += "└──────────────────────────┴──────┴─────────┴────────┴────────┴────────┴────────┴────────┘";
-      document.getElementById("cliOut").textContent = "$ goship-pulse https://hackclub.com https://github.com https://cloudflare.com https://pkg.go.dev\n" + cli;
+/* ---------- state ---------- */
+const DEFAULT_TARGETS = ["hackclub.com", "github.com", "cloudflare.com", "pkg.go.dev", "go.dev"];
+const state = {
+  targets: DEFAULT_TARGETS.slice(),
+  samples: 5,
+  report: null,
+  groups: [],
+  mode: "boot",          // boot | live | snapshot
+  running: false,
+  selected: null,
+  inspTab: "cipher",
+  exportTab: "json",
+  cipherPick: null,
+  reportTargets: [],
+};
 
-      totals.sort((a, b) => a - b);
-      const p50 = totals[Math.floor(totals.length / 2)] || 0;
-      const p95 = totals[Math.floor((totals.length - 1) * 0.95)] || 0;
-      document.getElementById("mHealthy").textContent = `${probes.length} / ${probes.length}`;
-      document.getElementById("mP50").textContent = `${p50.toFixed(1)} ms`;
-      document.getElementById("mP95").textContent = `${p95.toFixed(1)} ms`;
+const PHASES = [
+  { key: "dns", field: "dns_ms", label: "DNS lookup", cls: "var(--dns)" },
+  { key: "tcp", field: "tcp_connect_ms", label: "TCP connect", cls: "var(--tcp)" },
+  { key: "tls", field: "tls_handshake_ms", label: "TLS handshake", cls: "var(--tls)" },
+  { key: "ttfb", field: "server_wait_ms", label: "Server wait", cls: "var(--ttfb)" },
+];
+
+/* Same method as the Go side: linear interpolation between closest ranks. */
+function percentile(sorted, q) {
+  const n = sorted.length;
+  if (!n) return 0;
+  if (n === 1 || q <= 0) return sorted[0];
+  if (q >= 1) return sorted[n - 1];
+  const rank = q * (n - 1), lo = Math.floor(rank), hi = Math.min(lo + 1, n - 1);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
+}
+
+function groupReport(report) {
+  const order = [], map = new Map();
+  for (const p of report.probes || []) {
+    if (!map.has(p.target)) { map.set(p.target, []); order.push(p.target); }
+    map.get(p.target).push(p);
+  }
+  return order.map((target) => {
+    const all = map.get(target);
+    const ok = all.filter((p) => !p.error).sort((a, b) => a.total_ms - b.total_ms);
+    const rep = ok.length ? ok[Math.floor((ok.length - 1) / 2)] : all[0];
+    return {
+      target, label: bareHost(target), all, ok, rep,
+      min: ok.length ? ok[0].total_ms : 0,
+      max: ok.length ? ok[ok.length - 1].total_ms : 0,
+      failed: all.length - ok.length,
+    };
+  });
+}
+
+function niceScale(max, maxTicks = 6) {
+  if (!(max > 0)) max = 100;
+  const raw = max / maxTicks, mag = Math.pow(10, Math.floor(Math.log10(raw))), norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  const top = Math.ceil(max / step - 1e-9) * step;
+  const ticks = [];
+  for (let v = 0; v <= top + step * 1e-6; v += step) ticks.push(+v.toFixed(6));
+  return { step, top, ticks };
+}
+
+/* ---------- tooltip ---------- */
+const tip = $("#tip");
+function showTip(evt, title, lines, sub) {
+  clear(tip).append(el("b", {}, title),
+    ...lines.map(([k, v, color]) => el("div", {}, el("span", { style: color ? "color:" + color : "" }, k), el("span", {}, v))),
+    sub ? el("span", { class: "sub" }, sub) : null);
+  tip.hidden = false;
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + w > innerWidth - 8) x = evt.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = evt.clientY - h - pad;
+  tip.style.left = Math.max(8, x) + "px";
+  tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+
+/* ---------- targets + controls ---------- */
+function renderChips() {
+  const box = clear($("#chips"));
+  state.targets.forEach((t, i) => {
+    box.append(el("span", { class: "chip" }, bareHost(t),
+      el("button", { type: "button", "aria-label": "Remove " + bareHost(t), onclick: () => { state.targets.splice(i, 1); renderChips(); } },
+        sv("svg", { width: 12, height: 12, viewBox: "0 0 12 12", "aria-hidden": "true" },
+          sv("path", { d: "M2 2l8 8M10 2l-8 8", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round" })))));
+  });
+  if (!state.targets.length) box.append(el("span", { class: "silk" }, "No endpoints yet. Add one above."));
+}
+
+function addTarget() {
+  const input = $("#targetInput");
+  const raw = input.value.trim();
+  if (!raw) return;
+  const bad = /\s/.test(raw) || /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) && !/^https?:\/\//i.test(raw);
+  if (bad) return say("That does not look like an http or https address.", true);
+  if (state.targets.length >= 12) return say("The bench takes at most 12 endpoints per run.", true);
+  if (state.targets.some((t) => bareHost(t) === bareHost(raw))) return say(bareHost(raw) + " is already in the list.", true);
+  state.targets.push(raw);
+  input.value = "";
+  renderChips();
+  say("");
+}
+
+function renderSamples() {
+  const box = clear($("#samples"));
+  const radios = [1, 3, 5, 10].map((n) => el("button", {
+    type: "button", role: "radio", class: "sw", "aria-checked": String(state.samples === n),
+    tabindex: state.samples === n ? "0" : "-1", "aria-label": n + (n === 1 ? " probe" : " probes") + " per endpoint",
+    onclick: () => { state.samples = n; renderSamples(); },
+    onkeydown: (e) => {
+      const vals = [1, 3, 5, 10], i = vals.indexOf(state.samples);
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") state.samples = vals[(i + 1) % 4];
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") state.samples = vals[(i + 3) % 4];
+      else return;
+      e.preventDefault(); renderSamples(); $("#samples [aria-checked=true]").focus();
+    },
+  }, String(n)));
+  box.append(...radios);
+}
+
+function say(text, isErr, node) {
+  const s = $("#status");
+  s.className = "status" + (isErr ? " err" : "");
+  clear(s);
+  if (node) s.append(node); else s.textContent = text;
+}
+
+function setLed(id, on, text) {
+  $("#" + id).dataset.on = on;
+  $("#" + id + "Text").textContent = text;
+}
+
+/* ---------- readouts ---------- */
+function renderReadouts() {
+  const r = state.report, box = clear($("#readouts"));
+  const cell = (key, name, value, unit, bad) => box.append(
+    el("div", { class: "lcd", "data-key": key }, el("div", { class: "name" }, name),
+      el("div", { class: "val" + (bad ? " bad" : "") }, value, unit ? el("small", {}, unit) : null)));
+  if (!r) {
+    [["healthy", "Healthy"], ["p50", "p50 median"], ["p90", "p90"], ["p95", "p95"], ["p99", "p99"], ["max", "Slowest"]]
+      .forEach(([k, n]) => cell(k, n, "--", k === "healthy" ? "" : "ms"));
+    return;
+  }
+  cell("healthy", "Healthy probes", r.healthy + "/" + r.count, "", r.healthy < r.count);
+  cell("p50", "p50 median", ms(r.p50_ms), "ms");
+  cell("p90", "p90", ms(r.p90_ms), "ms");
+  cell("p95", "p95", ms(r.p95_ms), "ms");
+  cell("p99", "p99", ms(r.p99_ms), "ms");
+  cell("max", "Slowest", ms(r.max_ms), "ms");
+}
+
+/* ---------- waterfall (custom SVG) ---------- */
+function renderWaterfall() {
+  const mount = clear($("#wfMount")), groups = state.groups, r = state.report;
+  const table = clear($("#wfTable"));
+  table.append(el("caption", {}, "Phase timings in milliseconds, median sample per endpoint"));
+  if (!r || !groups.length) {
+    mount.append(el("div", { class: "empty" }, "No trace yet. Run a probe to draw the waterfall."));
+    $("#wfMeta").textContent = "";
+    return;
+  }
+  $("#wfMeta").textContent = groups.length + " endpoints, " + r.samples_per_target + (r.samples_per_target === 1 ? " probe" : " probes") + " each, median shown";
+
+  const W = 860, labelW = 196, x0 = labelW + 8, x1 = 700, rowH = 62, top = 54, H = top + groups.length * rowH + 14;
+  let maxT = 0;
+  groups.forEach((g) => { maxT = Math.max(maxT, g.rep.total_ms, g.max); });
+  const sc = niceScale(maxT * 1.02), X = (v) => x0 + (v / sc.top) * (x1 - x0);
+
+  const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Phase timing waterfall, one row per endpoint" });
+  const defs = sv("defs", {}, sv("pattern", { id: "hatch", width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" },
+    sv("rect", { width: 6, height: 6, fill: "#14130f" }), sv("rect", { width: 3, height: 6, fill: "#55533f" })));
+  svg.append(defs);
+
+  sc.ticks.forEach((t) => {
+    svg.append(sv("line", { x1: X(t), x2: X(t), y1: top - 8, y2: H - 8, stroke: "#2d2c23", "stroke-width": 1 }),
+      sv("text", { x: X(t), y: top - 18, fill: "#a09a84", "font-size": 12, "text-anchor": "middle" }, String(t)));
+  });
+  svg.append(sv("text", { x: x0, y: 16, fill: "#a09a84", "font-size": 12 }, "milliseconds from request start"));
+  for (let t = 0; t < sc.top; t += sc.step / 5) {
+    if (t % sc.step) svg.append(sv("line", { x1: X(t), x2: X(t), y1: top - 8, y2: top - 3, stroke: "#4a4836" }));
+  }
+
+  groups.forEach((g, i) => {
+    const y = top + i * rowH, p = g.rep, sel = state.selected === g.target;
+    const row = sv("g", { class: "row-hit", tabindex: 0, role: "button", "aria-pressed": String(sel),
+      "aria-label": `${g.label}, ${p.error ? "failed" : ms(p.total_ms) + " milliseconds"}. Select to inspect TLS.`,
+      onclick: () => selectTarget(g.target),
+      onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTarget(g.target); } },
+      onmousemove: (e) => hover(e, g), onmouseleave: hideTip, onfocus: () => {}, onblur: hideTip });
+    row.append(sv("rect", { class: "row-frame", x: 4, y: y - 4, width: W - 8, height: rowH - 6, rx: 6,
+      fill: sel ? "#201f17" : "transparent", stroke: sel ? "#ff6a3d" : "transparent", "stroke-width": sel ? 1.5 : 0 }));
+    row.append(sv("text", { x: 14, y: y + 18, fill: "#ece5cf", "font-size": 13, "font-weight": 700 }, clip(g.label, 21)));
+    const meta = p.error ? "failed" : [p.status_code, shortProto(p.protocol), p.tls_version === "Plain HTTP" ? "no TLS" : p.tls_version].filter(Boolean).join("  ");
+    row.append(sv("text", { x: 14, y: y + 38, fill: p.error ? "#ff6a5c" : "#a09a84", "font-size": 12 }, clip(meta, 26)));
+
+    if (p.error) {
+      row.append(sv("text", { x: x0 + 6, y: y + 28, fill: "#ff6a5c", "font-size": 13 }, clip(p.error, 74)));
+    } else {
+      const sum = PHASES.reduce((a, ph) => a + (p[ph.field] || 0), 0), other = Math.max(0, p.total_ms - sum);
+      let cur = 0;
+      const seg = (len, fill, label, textFill) => {
+        if (len <= 0) return;
+        const xa = X(cur), xb = X(cur + len), w = Math.max(1.5, xb - xa - 1);
+        row.append(sv("rect", { x: xa, y: y + 6, width: w, height: 24, rx: 2, fill }));
+        if (label && w > 40) row.append(sv("text", { x: xa + w / 2, y: y + 22, fill: textFill || "#14130f", "font-size": 12, "font-weight": 700, "text-anchor": "middle" }, label));
+        cur += len;
+      };
+      PHASES.forEach((ph) => seg(p[ph.field] || 0, ph.cls, ms(p[ph.field] || 0)));
+      seg(other, "url(#hatch)", "", "");
+      row.append(sv("text", { x: X(p.total_ms) + 10, y: y + 24, fill: "#ece5cf", "font-size": 14, "font-weight": 700 }, ms(p.total_ms) + " ms"));
+      if (g.ok.length > 1) {
+        const yy = y + 44;
+        row.append(sv("line", { x1: X(g.min), x2: X(g.max), y1: yy, y2: yy, stroke: "#a09a84", "stroke-width": 1.5 }),
+          sv("line", { x1: X(g.min), x2: X(g.min), y1: yy - 4, y2: yy + 4, stroke: "#a09a84", "stroke-width": 1.5 }),
+          sv("line", { x1: X(g.max), x2: X(g.max), y1: yy - 4, y2: yy + 4, stroke: "#a09a84", "stroke-width": 1.5 }),
+          sv("rect", { x: X(p.total_ms) - 3, y: yy - 4, width: 6, height: 8, fill: "#ece5cf" }),
+          sv("text", { x: W - 14, y: yy + 4, fill: "#a09a84", "font-size": 12, "text-anchor": "end" }, `${ms(g.min)} to ${ms(g.max)}` + (g.failed ? `, ${g.failed} failed` : "")));
+      }
     }
+    svg.append(row);
+  });
+  $("#wfScreen").style.setProperty("--sweep-h", H + "px");
+  mount.append(svg);
 
-    document.getElementById("runBtn").addEventListener("click", () => {
-      const raw = document.getElementById("targets").value.split(",").map(s => s.trim()).filter(Boolean);
-      const probes = raw.map((t, i) => {
-        const base = sampleFleet[i % sampleFleet.length];
-        const jitter = () => (Math.random() - 0.5) * 3.2;
-        return {
-          target: t,
-          code: 200,
-          dns: Math.max(1.8, base.dns + jitter()),
-          tcp: Math.max(4.5, base.tcp + jitter()),
-          tls: Math.max(9.0, base.tls + jitter()),
-          ttfb: Math.max(12.0, base.ttfb + jitter()),
-          cert: base.cert
-        };
-      });
-      render(probes);
-    });
+  const head = el("tr", {}, ...["Endpoint", "Status", "DNS", "TCP", "TLS", "Server wait", "Total"].map((h) => el("th", {}, h)));
+  table.append(head, ...groups.map((g) => el("tr", {}, el("td", {}, g.label), el("td", {}, g.rep.error || g.rep.status_code),
+    ...["dns_ms", "tcp_connect_ms", "tls_handshake_ms", "server_wait_ms", "total_ms"].map((f) => el("td", {}, ms(g.rep[f]))))));
+}
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "\u2026" : s);
+const shortProto = (p) => ({ "HTTP/2.0": "h2", "HTTP/1.1": "h1.1", "HTTP/1.0": "h1.0", "HTTP/3.0": "h3" }[p] || p || "");
 
-    render(sampleFleet);
-  </script>
+function hover(evt, g) {
+  const p = g.rep;
+  if (p.error) return showTip(evt, g.label, [["error", p.error]], "");
+  const sum = PHASES.reduce((a, ph) => a + (p[ph.field] || 0), 0);
+  showTip(evt, g.label, [
+    ...PHASES.map((ph) => [ph.label, ms(p[ph.field] || 0) + " ms", ph.cls]),
+    ["Other", ms(Math.max(0, p.total_ms - sum)) + " ms"],
+    ["Total", ms(p.total_ms) + " ms"],
+  ], `${g.ok.length} ok of ${g.all.length} probes. Median shown, spread ${ms(g.min)} to ${ms(g.max)} ms. ${p.remote_addr || ""}`);
+}
+
+/* ---------- histogram (custom SVG) ---------- */
+function renderHistogram() {
+  const mount = clear($("#hgMount")), r = state.report, pc = clear($("#pcts"));
+  const totals = r && r.totals_ms ? r.totals_ms.slice().sort((a, b) => a - b) : [];
+  if (!r) { mount.append(el("div", { class: "empty" }, "No samples yet.")); $("#hgMeta").textContent = ""; return; }
+  $("#hgMeta").textContent = "n = " + totals.length + " completed probes";
+  if (!totals.length) { mount.append(el("div", { class: "empty" }, "Every probe failed, so there is no distribution to draw.")); return; }
+
+  const W = 440, H = 340, L = 44, R = 20, T = 78, B = 46;
+  let lo = totals[0], hi = totals[totals.length - 1];
+  if (hi - lo < 1) { lo -= 0.5; hi += 0.5; }
+  const sc = niceScale(hi - lo, 5);
+  const amin = Math.floor(lo / sc.step + 1e-9) * sc.step, amax = Math.ceil(hi / sc.step - 1e-9) * sc.step;
+  let k = 1; while (((amax - amin) / sc.step) * k < 8) k++;
+  const bw = sc.step / k, nb = Math.round((amax - amin) / bw);
+  const counts = new Array(nb).fill(0);
+  totals.forEach((v) => { counts[Math.min(nb - 1, Math.floor((v - amin) / bw))]++; });
+  const cmax = Math.max(...counts), ystep = Math.max(1, Math.ceil(cmax / 4)), ytop = Math.ceil(cmax / ystep) * ystep;
+  const X = (v) => L + ((v - amin) / (amax - amin)) * (W - L - R), Y = (c) => H - B - (c / ytop) * (H - B - T);
+
+  const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Histogram of total latency with p50, p90, p95 and p99 markers" });
+  for (let c = 0; c <= ytop; c += ystep) {
+    svg.append(sv("line", { x1: L, x2: W - R, y1: Y(c), y2: Y(c), stroke: "#2d2c23" }),
+      sv("text", { x: L - 8, y: Y(c) + 4, fill: "#a09a84", "font-size": 12, "text-anchor": "end" }, String(c)));
+  }
+  const xt = [];
+  for (let v = amin; v <= amax + sc.step * 1e-6; v += sc.step) xt.push(+v.toFixed(6));
+  xt.forEach((v) => svg.append(sv("line", { x1: X(v), x2: X(v), y1: H - B, y2: H - B + 5, stroke: "#a09a84" }),
+    sv("text", { x: X(v), y: H - B + 20, fill: "#a09a84", "font-size": 12, "text-anchor": "middle" }, String(v))));
+  svg.append(sv("text", { x: (L + W - R) / 2, y: H - 8, fill: "#a09a84", "font-size": 12, "text-anchor": "middle" }, "total latency, ms"),
+    sv("text", { x: 12, y: T - 12, fill: "#a09a84", "font-size": 12 }, "probes"));
+
+  counts.forEach((c, i) => {
+    if (!c) return;
+    const xa = X(amin + i * bw), xb = X(amin + (i + 1) * bw);
+    const bar = sv("rect", { x: xa + 1, y: Y(c), width: Math.max(1, xb - xa - 2), height: H - B - Y(c), fill: "#ece5cf",
+      onmousemove: (e) => showTip(e, `${ms(amin + i * bw)} to ${ms(amin + (i + 1) * bw)} ms`, [["probes", String(c)]]), onmouseleave: hideTip });
+    svg.append(bar);
+  });
+  svg.append(sv("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, stroke: "#a09a84", "stroke-width": 1.5 }));
+
+  const marks = [["p50", r.p50_ms, "#3cc4ab"], ["p90", r.p90_ms, "#f2c14e"], ["p95", r.p95_ms, "#ff9a3d"], ["p99", r.p99_ms, "#ff6a3d"]];
+  /* Stack labels into rows so close percentiles (p95 and p99 often sit together) never overprint. */
+  const lastX = [];
+  marks.forEach(([name, v, color]) => {
+    const x = X(v), lx = Math.min(W - R - 18, Math.max(L + 18, x));
+    let row = 0; while (lastX[row] !== undefined && lx - lastX[row] < 34) row++;
+    lastX[row] = lx;
+    const ly = 18 + row * 14;
+    svg.append(sv("line", { x1: x, x2: x, y1: ly + 4, y2: H - B, stroke: color, "stroke-width": 2, "stroke-dasharray": "5 3" }),
+      sv("text", { x: lx, y: ly, fill: color, "font-size": 12, "font-weight": 700, "text-anchor": "middle" }, name));
+  });
+  mount.append(svg);
+
+  marks.forEach(([name, v, color]) => pc.append(el("div", {}, el("div", { class: "k", style: "color:var(--silk)" }, name), el("div", { class: "v" }, ms(v) + " ms"))));
+}
+
+/* ---------- TLS inspector ---------- */
+const NOTES = {
+  tls13kx: "TLS 1.3 negotiates the key exchange as a separate step, and every TLS 1.3 handshake uses a fresh ephemeral key. Forward secrecy is always on.",
+  ECDHE: "Elliptic-curve Diffie-Hellman with a new key pair for each connection. Recording traffic now and stealing the server key later does not unlock it, which is forward secrecy.",
+  DHE: "Classic Diffie-Hellman with a new key pair per connection. Gives forward secrecy but is slower than the elliptic-curve version.",
+  RSAkx: "The client encrypts the session secret to the server's RSA key. There is no forward secrecy, because whoever later obtains that key can decrypt recorded traffic. TLS 1.3 removed this mode.",
+  RSA: "The server proves its identity by signing the handshake with an RSA certificate key.",
+  ECDSA: "The server proves its identity by signing the handshake with an elliptic-curve certificate key. Smaller and faster than RSA at similar strength.",
+  AES_128: "AES with a 128-bit key. Still considered strong, and fast on any CPU with AES instructions.",
+  AES_256: "AES with a 256-bit key. A larger safety margin than 128-bit, at a small speed cost.",
+  CHACHA20: "ChaCha20 stream cipher. Fast in software, which is why phones without AES hardware often prefer it.",
+  "3DES_EDE": "Triple DES. A legacy cipher with a 64-bit block that is vulnerable to birthday attacks on long connections. Treat it as weak.",
+  RC4_128: "RC4 stream cipher. Broken, and prohibited by RFC 7465. Seeing this is a finding.",
+  GCM: "Galois/Counter Mode. Encrypts and authenticates in one pass (an AEAD), so tampering is detected without a separate MAC.",
+  POLY1305: "Poly1305 authenticator paired with ChaCha20. Also an AEAD design.",
+  CBC: "Cipher Block Chaining with a separate HMAC. An older construction that has had padding-oracle problems. AEAD suites replaced it.",
+  SHA: "SHA-1. In a CBC suite it is the record HMAC. Its use in signatures is deprecated, but HMAC-SHA1 is not broken the same way.",
+  SHA256: "SHA-256. In AEAD suites it drives key derivation and the handshake transcript. In CBC suites it is also the record HMAC.",
+  SHA384: "SHA-384. Used for key derivation and the handshake transcript, typically paired with AES-256.",
+};
+
+function parseCipher(name) {
+  if (!name) return null;
+  const body = name.replace(/^TLS_/, "");
+  let kx, auth, rest, tls13 = false;
+  if (body.includes("_WITH_")) {
+    const [ka, r] = body.split("_WITH_"); rest = r;
+    const bits = ka.split("_");
+    kx = bits[0]; auth = bits[1] || bits[0];
+  } else { tls13 = true; rest = body; }
+  const m = rest.match(/^(.*)_(SHA\d*)$/);
+  const enc = m ? m[1] : rest, hash = m ? m[2] : "";
+  const mode = /GCM/.test(enc) ? "GCM" : /POLY1305/.test(enc) ? "POLY1305" : /CBC/.test(enc) ? "CBC" : "";
+  const cipher = enc.replace(/_(GCM|CBC|POLY1305)$/, "");
+  const tokens = [];
+  if (tls13) tokens.push({ id: "tls13kx", text: "TLS 1.3", role: "key exchange" });
+  else {
+    tokens.push({ id: kx === "RSA" ? "RSAkx" : kx, text: kx, role: "key exchange" });
+    if (auth !== kx || kx !== "RSA") tokens.push({ id: auth, text: auth, role: "authentication" });
+  }
+  tokens.push({ id: cipher, text: cipher.replace(/_/g, " "), role: "bulk cipher" });
+  if (mode) tokens.push({ id: mode, text: mode, role: "mode" });
+  if (hash) tokens.push({ id: hash, text: hash, role: "hash" });
+  const aead = mode === "GCM" || mode === "POLY1305" || /CHACHA20/.test(enc);
+  const fs = tls13 || kx === "ECDHE" || kx === "DHE";
+  const weak = /RC4|3DES/.test(enc);
+  return { tokens, aead, fs, weak, tls13 };
+}
+
+function renderInspector() {
+  const picker = clear($("#picker")), body = clear($("#inspBody"));
+  document.querySelectorAll("#inspTabs .tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.k === state.inspTab)));
+  document.querySelectorAll("#inspTabs .tab").forEach((t) => (t.tabIndex = t.dataset.k === state.inspTab ? 0 : -1));
+  body.setAttribute("aria-labelledby", "tab-" + state.inspTab);
+  const groups = state.groups;
+  if (!groups.length) { body.append(el("div", { class: "glass" }, el("div", { class: "empty" }, "Run a probe to inspect the negotiated cipher and certificate chain."))); return; }
+  groups.forEach((g) => picker.append(el("button", { type: "button", class: "pick", "aria-pressed": String(state.selected === g.target), onclick: () => selectTarget(g.target) },
+    el("span", { class: "dot" + (g.rep.error ? " bad" : "") }), g.label)));
+  const g = groups.find((x) => x.target === state.selected) || groups[0], p = g.rep;
+  if (p.error) { body.append(el("div", { class: "glass" }, el("p", { class: "suite", style: "color:var(--bad)" }, "Probe failed"), el("p", { class: "note", style: "border:0;margin:0;padding:0" }, p.error))); return; }
+  if (state.inspTab === "cipher") body.append(cipherView(p)); else body.append(chainView(p));
+}
+
+function cipherView(p) {
+  const wrap = el("div", { class: "glass" });
+  if (!p.cipher_suite) {
+    wrap.append(el("p", { class: "suite" }, "No TLS on this connection"),
+      el("p", { class: "note", style: "border:0;margin:0;padding:0" }, "This endpoint answered over plain HTTP, so nothing was encrypted and there is no cipher to inspect."));
+    return wrap;
+  }
+  const info = parseCipher(p.cipher_suite);
+  wrap.append(el("p", { class: "suite" }, p.cipher_suite));
+  const note = el("p", { class: "note", "aria-live": "polite" });
+  const pills = el("div", { class: "pills", role: "group", "aria-label": "Parts of the cipher suite name. Select one for an explanation." });
+  const pick = state.cipherPick && info.tokens.find((t) => t.id === state.cipherPick) ? state.cipherPick : info.tokens[0].id;
+  const paint = (id) => {
+    state.cipherPick = id;
+    pills.querySelectorAll(".pill").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === id)));
+    const t = info.tokens.find((x) => x.id === id);
+    note.textContent = t.text + " (" + t.role + "). " + (NOTES[id] || "No built-in note for this part.");
+  };
+  info.tokens.forEach((t) => pills.append(el("button", { type: "button", class: "pill", "data-id": t.id, "aria-pressed": "false", onclick: () => paint(t.id) }, t.text, el("small", {}, t.role))));
+  wrap.append(pills, note);
+  paint(pick);
+  const fact = (k, v, cls) => el("div", {}, el("dt", {}, k), el("dd", { class: cls || "" }, v));
+  const hs = p.tls_handshake_ms || 0;
+  wrap.append(el("dl", { class: "facts" },
+    ...[
+      fact("Protocol", p.tls_version),
+      fact("Application protocol", p.alpn || (p.protocol || "unknown")),
+      fact("Forward secrecy", info.fs ? "yes" : "no", info.fs ? "good" : "warn"),
+      fact("Authenticated encryption", info.aead ? "yes" : "no", info.aead ? "good" : "warn"),
+      fact("Handshake time", ms(hs) + " ms (" + (p.total_ms ? ((hs / p.total_ms) * 100).toFixed(0) : 0) + "% of total)"),
+      fact("Remote address", p.remote_addr || "unknown"),
+    ]));
+  if (info.weak) wrap.append(el("p", { class: "note" }, "This suite uses a cipher that is considered weak. Ask the operator to disable it."));
+  return wrap;
+}
+
+function chainView(p) {
+  const wrap = el("div", { class: "glass" });
+  const chain = p.chain || [];
+  if (!chain.length) {
+    wrap.append(el("p", { class: "suite" }, "No certificates"), el("p", { class: "note", style: "border:0;margin:0;padding:0" }, "This connection did not use TLS, so the server sent no certificate."));
+    return wrap;
+  }
+  const now = state.report && state.report.generated_at ? Date.parse(state.report.generated_at) : Date.now();
+  const list = el("ol", { class: "chain" });
+  chain.forEach((c, i) => {
+    const self = c.subject === c.issuer;
+    const role = i === 0 ? "leaf" : self ? "root" : "intermediate";
+    const nb = Date.parse(c.not_before), na = Date.parse(c.not_after);
+    const pct = Math.min(100, Math.max(0, ((now - nb) / (na - nb)) * 100));
+    const exp = c.days_left < 0;
+    const daysTxt = exp ? "expired " + -c.days_left + "d ago" : c.days_left + "d left";
+    const detail = el("div", { class: "detail", hidden: i !== 0 },
+      el("div", { class: "life", role: "img", "aria-label": `Validity window, ${pct.toFixed(0)} percent elapsed` }, el("b", { class: c.days_left < 14 ? "soon" : "", style: `width:${pct}%` }), el("em", { style: `left:${pct}%` })),
+      el("dl", { class: "kv" },
+        ...[["Issued by", c.issuer], ["Valid from", c.not_before.slice(0, 10)], ["Valid until", c.not_after.slice(0, 10)], ["Signature", c.sig_alg], ["Public key", c.key_alg],
+          ...(i === 0 ? [["Names", c.san_count ? c.sans.join(", ") + (c.san_count > c.sans.length ? `, and ${c.san_count - c.sans.length} more` : "") : "none listed"]] : []),
+          ["SHA-256", c.sha256.match(/.{2}/g).join(":")]].flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])));
+    const head = el("button", { type: "button", class: "head", "aria-expanded": String(i === 0),
+      onclick: () => { const open = detail.hidden; detail.hidden = !open; head.setAttribute("aria-expanded", String(open)); } },
+      el("span", { class: "role" }, role), el("span", { class: "cn" }, c.subject),
+      el("span", { class: "days", style: `color:var(${exp ? "--bad" : c.days_left < 14 ? "--tls" : "--ok"})` }, daysTxt));
+    list.append(el("li", { class: "cert " + role }, head, detail));
+  });
+  wrap.append(list, el("p", { class: "note", style: "margin-top:6px" },
+    chain.length + (chain.length === 1 ? " certificate" : " certificates") + " sent by the server. Servers normally leave the root out, because clients already hold it in their trust store."));
+  return wrap;
+}
+
+/* ---------- export ---------- */
+function cleanReport() {
+  const { ascii, ...rest } = state.report || {};
+  return rest;
+}
+function origin() { return location.protocol.startsWith("http") ? location.origin : "http://127.0.0.1:8080"; }
+function exportText() {
+  const r = state.report;
+  if (!r) return "Run a probe first.";
+  const targets = state.reportTargets.length ? state.reportTargets : state.targets;
+  if (state.exportTab === "json") return JSON.stringify(cleanReport(), null, 2);
+  if (state.exportTab === "cli") {
+    return `$ goship-pulse -n ${r.samples_per_target} ${targets.map(bareHost).join(" ")}\n\n` + (r.ascii || "");
+  }
+  const qs = new URLSearchParams({ targets: targets.join(","), samples: String(r.samples_per_target) });
+  return `curl -s '${origin()}/api/probe?${qs}'\n\n# one-shot JSON from the CLI\ngoship-pulse -json -n ${r.samples_per_target} ${targets.map(bareHost).join(" ")}\n\n# run the web bench\ngoship-pulse -serve 127.0.0.1:8080`;
+}
+function renderExport() {
+  document.querySelectorAll("#exTabs .tab").forEach((t) => { t.setAttribute("aria-selected", String(t.dataset.k === state.exportTab)); t.tabIndex = t.dataset.k === state.exportTab ? 0 : -1; });
+  const body = clear($("#exBody"));
+  body.setAttribute("aria-labelledby", "tab-" + state.exportTab);
+  body.append(el("pre", { class: "out" + (state.exportTab === "cli" ? " ascii" : ""), tabindex: 0, "aria-label": "Export preview" }, exportText()));
+  $("#copyBtn").textContent = state.exportTab === "json" ? "Copy JSON" : state.exportTab === "cli" ? "Copy CLI output" : "Copy commands";
+  $("#dlBtn").disabled = !state.report;
+  $("#copyBtn").disabled = !state.report;
+}
+async function copyExport() {
+  const text = $("#exBody pre").textContent;
+  try { await navigator.clipboard.writeText(text); say("Copied to the clipboard."); }
+  catch {
+    const ta = el("textarea", { style: "position:fixed;opacity:0" }, text); document.body.append(ta); ta.select();
+    try { document.execCommand("copy"); say("Copied to the clipboard."); } catch { say("Copy was blocked by the browser. Select the text and copy it by hand.", true); }
+    ta.remove();
+  }
+}
+function downloadJson() {
+  const blob = new Blob([JSON.stringify(cleanReport(), null, 2) + "\n"], { type: "application/json" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: "goship-pulse-" + (state.report.generated_at || "report").replace(/[:]/g, "") + ".json" });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- tab keyboard model ---------- */
+function wireTabs(sel, onPick) {
+  const bar = $(sel);
+  bar.addEventListener("click", (e) => { const t = e.target.closest(".tab"); if (t) onPick(t.dataset.k); });
+  bar.addEventListener("keydown", (e) => {
+    const tabs = [...bar.querySelectorAll(".tab")], i = tabs.findIndex((t) => t === document.activeElement);
+    if (i < 0) return;
+    let j = i;
+    if (e.key === "ArrowRight") j = (i + 1) % tabs.length; else if (e.key === "ArrowLeft") j = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") j = 0; else if (e.key === "End") j = tabs.length - 1; else return;
+    e.preventDefault(); onPick(tabs[j].dataset.k); tabs[j].focus();
+  });
+}
+
+/* ---------- flow ---------- */
+function selectTarget(t) { state.selected = t; renderWaterfall(); renderInspector(); }
+
+function applyReport(report, targetsUsed) {
+  state.report = report;
+  state.reportTargets = targetsUsed || [];
+  state.groups = groupReport(report);
+  if (!state.groups.some((g) => g.target === state.selected)) state.selected = state.groups.length ? state.groups[0].target : null;
+  renderReadouts(); renderWaterfall(); renderHistogram(); renderInspector(); renderExport();
+}
+
+async function run() {
+  if (state.running) return;
+  if (state.mode !== "live") return;
+  if (!state.targets.length) return say("Add at least one endpoint first.", true);
+  state.running = true;
+  $("#runBtn").disabled = true; $("#runBtn").textContent = "Probing...";
+  document.querySelector("#wfScreen").classList.add("running");
+  setLed("ledRun", "busy", "probing");
+  const t0 = performance.now(), used = state.targets.slice();
+  try {
+    const qs = new URLSearchParams({ targets: used.join(","), samples: String(state.samples) });
+    const res = await fetch("/api/probe?" + qs);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || "server answered " + res.status);
+    applyReport(body, used);
+    const secs = ((performance.now() - t0) / 1000).toFixed(1);
+    say(`Probed ${used.length} endpoints, ${body.count} requests, in ${secs} s. ${body.healthy} healthy.`);
+    setLed("ledRun", "", "idle");
+  } catch (e) {
+    say("Probe failed. " + e.message, true);
+    setLed("ledRun", "fault", "fault");
+  } finally {
+    state.running = false;
+    $("#runBtn").disabled = false; $("#runBtn").textContent = "Run probe";
+    document.querySelector("#wfScreen").classList.remove("running");
+  }
+}
+
+function startClock() {
+  const tick = () => { $("#clock").textContent = new Date().toISOString().slice(11, 19) + " UTC"; };
+  tick(); setInterval(tick, 1000);
+}
+
+async function boot() {
+  startClock();
+  renderChips(); renderSamples(); renderReadouts(); renderWaterfall(); renderHistogram(); renderInspector(); renderExport();
+  wireTabs("#inspTabs", (k) => { state.inspTab = k; renderInspector(); });
+  wireTabs("#exTabs", (k) => { state.exportTab = k; renderExport(); });
+  $("#addBtn").addEventListener("click", addTarget);
+  $("#targetInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addTarget(); } });
+  $("#runBtn").addEventListener("click", run);
+  $("#copyBtn").addEventListener("click", copyExport);
+  $("#dlBtn").addEventListener("click", downloadJson);
+
+  let live = false;
+  if (location.protocol.startsWith("http")) {
+    try { const r = await fetch("/api/health", { cache: "no-store" }); live = r.ok && (await r.json()).ok === true; } catch { live = false; }
+  }
+  if (live) {
+    state.mode = "live";
+    setLed("ledLink", "live", "live server");
+    run();
+    return;
+  }
+  state.mode = "snapshot";
+  setLed("ledLink", "snapshot", "recorded snapshot");
+  $("#runBtn").setAttribute("aria-disabled", "true"); $("#runBtn").disabled = true;
+  const snap = JSON.parse($("#snapshot").textContent);
+  if (snap) {
+    const when = new Date(snap.generated_at).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+    applyReport(snap, DEFAULT_TARGETS);
+    say("", false, el("span", {}, "Showing a real run recorded " + when + ". Live probing needs the Go server. Start it with ", el("code", {}, "go run . -serve 127.0.0.1:8080")));
+  } else {
+    say("", false, el("span", {}, "Live probing needs the Go server. Start it with ", el("code", {}, "go run . -serve 127.0.0.1:8080")));
+  }
+}
+boot();
+</script>
 </body>
 </html>
