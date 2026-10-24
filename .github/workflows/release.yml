@@ -1,0 +1,31 @@
+name: Build & Publish Go Release Binaries
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Cross-compile release binaries
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/goship-pulse-linux-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/goship-pulse-darwin-arm64 .
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/goship-pulse-darwin-amd64 .
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/goship-pulse-windows-amd64.exe .
+      - name: Publish GitHub Release v1.0.0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view v1.0.0 >/dev/null 2>&1 || gh release create v1.0.0 --title "Goship Pulse v1.0.0" --notes "Cross-compiled standalone Go release binaries for Linux, macOS, and Windows."
+          gh release upload v1.0.0 dist/* --clobber
