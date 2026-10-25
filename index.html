@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Goship Pulse | HTTP phase timing bench</title>
 <meta name="description" content="A bench instrument for HTTP phase timing. Probes endpoints concurrently from Go and shows DNS, TCP, TLS and server wait per request, plus a latency distribution and TLS inspector." />
+  <meta property="og:title" content="Goship Pulse | HTTP phase timing bench" />
+  <meta property="og:description" content="A bench instrument for HTTP phase timing. Probes endpoints concurrently from Go and shows DNS, TCP, TLS and server wait per request, plus a latency distribution and TLS inspector." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://aariv.me/goship-pulse/" />
+  <meta name="twitter:card" content="summary" />
 <meta name="theme-color" content="#cdc8bc" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314130f'/%3E%3Cpath d='M4 22h6l3-12 4 16 3-10 2 6h6' fill='none' stroke='%23ff6a3d' stroke-width='2.4' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E" />
 <style>
@@ -95,7 +100,11 @@
     box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.6);
   }
   input[type="text"]::placeholder { color: #7c775f; }
-  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  html, body { overflow-x: clip; }
+    .skip-link { position: absolute; left: 16px; top: -60px; background: var(--ink); color: var(--phos); padding: 8px 14px; border-radius: 6px; font: 700 14px var(--mono); text-decoration: none; z-index: 30; }
+    .skip-link:focus, .skip-link:focus-visible { top: 12px; }
+    .facts dd, .cert .days, .kv dd, td, th { font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .btn {
     font: 700 15px var(--label); letter-spacing: 0.03em;
     color: var(--ink); background: #e9e5da;
@@ -142,7 +151,11 @@
     content: ""; position: absolute; top: 5px; left: 50%; width: 6px; height: 6px; margin-left: -3px;
     border-radius: 50%; background: var(--accent);
   }
-  .sw:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .swhtml, body { overflow-x: clip; }
+    .skip-link { position: absolute; left: 16px; top: -60px; background: var(--ink); color: var(--phos); padding: 8px 14px; border-radius: 6px; font: 700 14px var(--mono); text-decoration: none; z-index: 30; }
+    .skip-link:focus, .skip-link:focus-visible { top: 12px; }
+    .facts dd, .cert .days, .kv dd, td, th { font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .status { margin: 14px 0 0; font: 14px var(--mono); color: var(--silk); min-height: 20px; }
   .status.err { color: #9d2417; font-weight: 700; }
   .status code { background: #bdb8a9; padding: 2px 6px; border-radius: 4px; }
@@ -206,7 +219,11 @@
     box-shadow: 0 3px 0 #77725f, inset 0 1px 0 #fff; position: relative; top: -1px;
   }
   .tab[aria-selected="true"] { background: var(--screen); color: var(--phos); box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.7); top: 2px; }
-  .tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .tabhtml, body { overflow-x: clip; }
+    .skip-link { position: absolute; left: 16px; top: -60px; background: var(--ink); color: var(--phos); padding: 8px 14px; border-radius: 6px; font: 700 14px var(--mono); text-decoration: none; z-index: 30; }
+    .skip-link:focus, .skip-link:focus-visible { top: 12px; }
+    .facts dd, .cert .days, .kv dd, td, th { font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .tab small { font: 12px var(--mono); margin-left: 8px; opacity: 0.8; }
   .deck-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; }
   .picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
@@ -216,7 +233,11 @@
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
   }
   .pick[aria-pressed="true"] { background: var(--screen); color: var(--phos); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.7); }
-  .pick:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .pickhtml, body { overflow-x: clip; }
+    .skip-link { position: absolute; left: 16px; top: -60px; background: var(--ink); color: var(--phos); padding: 8px 14px; border-radius: 6px; font: 700 14px var(--mono); text-decoration: none; z-index: 30; }
+    .skip-link:focus, .skip-link:focus-visible { top: 12px; }
+    .facts dd, .cert .days, .kv dd, td, th { font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .pick .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
   .pick .dot.bad { background: var(--bad); }
 
@@ -229,7 +250,11 @@
   }
   .pill small { font: 11.5px var(--label); letter-spacing: 0.03em; color: #4d493b; font-weight: 400; }
   .pill[aria-pressed="true"] { background: var(--tcp); border-bottom-color: #9b7a1c; }
-  .pill:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .pillhtml, body { overflow-x: clip; }
+    .skip-link { position: absolute; left: 16px; top: -60px; background: var(--ink); color: var(--phos); padding: 8px 14px; border-radius: 6px; font: 700 14px var(--mono); text-decoration: none; z-index: 30; }
+    .skip-link:focus, .skip-link:focus-visible { top: 12px; }
+    .facts dd, .cert .days, .kv dd, td, th { font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .note { margin: 14px 0 0; padding-top: 12px; border-top: 1px dashed #4a4836; font: 14.5px/1.55 var(--body); color: var(--phos); min-height: 66px; }
   .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; margin-top: 14px; }
   .facts dt { font-size: 13px; color: var(--phos-dim); }
@@ -293,7 +318,8 @@
 </style>
 </head>
 <body>
-<main class="bench">
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<main class="bench" id="main-content">
 
   <header class="panel top">
     <div class="brand">
