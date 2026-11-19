@@ -478,16 +478,6 @@ const PHASES = [
   { key: "ttfb", field: "server_wait_ms", label: "Server wait", cls: "var(--ttfb)" },
 ];
 
-/* Same method as the Go side: linear interpolation between closest ranks. */
-function percentile(sorted, q) {
-  const n = sorted.length;
-  if (!n) return 0;
-  if (n === 1 || q <= 0) return sorted[0];
-  if (q >= 1) return sorted[n - 1];
-  const rank = q * (n - 1), lo = Math.floor(rank), hi = Math.min(lo + 1, n - 1);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
-}
-
 function groupReport(report) {
   const order = [], map = new Map();
   for (const p of report.probes || []) {
